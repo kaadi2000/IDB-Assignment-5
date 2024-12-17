@@ -16,7 +16,7 @@ public class Main {
         primary.clear();
         secondary.clear();
 
-        ExternalLinearHashMap<Long, Long> map = new ExternalLinearHashMap<>(LongConverter.DEFAULT_INSTANCE, LongConverter.DEFAULT_INSTANCE, primary, secondary, buffer);
+        ExternalLinearHashMap<Long, Long> map = new ExternalLinearHashMap<Long, Long>(LongConverter.DEFAULT_INSTANCE, LongConverter.DEFAULT_INSTANCE, primary, secondary, buffer);
         for (long i = 0; i < numInserts; i++) {
             map.insert(i, i);
 
@@ -40,7 +40,7 @@ public class Main {
         map.close();
 
         // Map should be persisted and work after re-creating
-        map = new ExternalLinearHashMap<>(LongConverter.DEFAULT_INSTANCE, LongConverter.DEFAULT_INSTANCE, primary, secondary, buffer);
+        map = new ExternalLinearHashMap<Long, Long>(LongConverter.DEFAULT_INSTANCE, LongConverter.DEFAULT_INSTANCE, primary, secondary, buffer);
 
         for (long i = 0; i < numInserts; i++) {
             if (!map.contains(i)) {

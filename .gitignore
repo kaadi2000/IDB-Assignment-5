@@ -11,9 +11,15 @@
 .mtj.tmp/
 
 # Package Files
-#*.jar
+*.jar
 *.war
 *.ear
+*.ctr
+*.mtd
+*.rbm
+*.ubm
+*.flt
+*.dat
 
 # Virtual machine crash logs
 hs_err_pid*
@@ -39,13 +45,12 @@ bin/
 # IntelliJ IDEA
 .idea/
 *.iws
-#*.iml
+*.iml
 *.ipr
 out/
 
 # NetBeans
 nbproject/private/
-build/
 nbbuild/
 dist/
 nbdist/
