@@ -150,15 +150,62 @@ public class ExternalLinearHashMap<K, V> implements Iterable<MapEntry<K, V>> {
          */
         ProbeResult probe(K key) {
             // TODO
-            return new ProbeResult(null, null, null, 0);
+            long currentId = id;
+            Container container = primary;
+            HashBlock<K, V> block = getPrimaryBlock(currentId);
+            if (block == null) {
+                block = new HashBlock<>();
+                primary.update(currentId, block);
+            }
+
+            while (true) {
+                for (MapEntry<K, V> entry : block) {
+                    if (entry.getKey().equals(key)) {
+                        return new ProbeResult(entry, block, container, currentId);
+                    }
+                }
+                if (block.hasOverflow()) {
+                    currentId = block.getOverflowId();
+                    container = secondary;
+                    block = getOverflowBlock(currentId);
+                    if (block == null) {
+                        block = new HashBlock<>();
+                        secondary.update(currentId, block);
+                    }
+                } else {
+                    break;
+                }
+            }
+            return new ProbeResult(null, block, container, currentId);
         }
 
         /**
          * Insert a key-value pair into the bucket; returns the previous value if it already existed.
          */
         V insert(K key, V value) {
-            ProbeResult res = probe(key);
             // TODO
+            ProbeResult res = probe(key);
+
+            if (res.entry != null) {
+                V oldValue = res.entry.getValue();
+                res.entry.setValue(value);
+                res.container.update(res.blockId, res.block);
+                return oldValue;
+            }
+
+
+            HashBlock<K, V> block = res.block;
+            if (block.getSize() < elementsPerBlock) {
+                block.add(new MapEntry<>(key, value));
+                res.container.update(res.blockId, block);
+            } else {
+                long newId = newOverflowId();
+                HashBlock<K, V> overflowBlock = new HashBlock<>();
+                overflowBlock.add(new MapEntry<>(key, value));
+                block.setOverflowId(newId);
+                res.container.update(res.blockId, block);
+                secondary.update(newId, overflowBlock);
+            }
             return null;
         }
 
@@ -392,6 +439,32 @@ public class ExternalLinearHashMap<K, V> implements Iterable<MapEntry<K, V>> {
      */
     private void performExpansion() {
         // TODO
+        HashBucket oldBucket = buckets.get(expansionPointer);
+        List<MapEntry<K, V>> elements = new ArrayList<>();
+
+        for (MapEntry<K, V> entry : oldBucket) {
+            elements.add(entry);
+        }
+
+        oldBucket.setElements(new ArrayList<>());
+
+        int newIndex = numBuckets;
+        buckets.add(new HashBucket(newIndex));
+        expansionPointer++;
+        numBuckets++;
+        if (expansionPointer == (INITIAL_CAPACITY << level)) {
+            expansionPointer = 0;
+            level++;
+        }
+
+        for (MapEntry<K, V> entry : elements) {
+            int index = realHashIndex(entry.getKey());
+            buckets.get(index).insert(entry.getKey(), entry.getValue());
+        }
+
+
+
+
     }
 
     /**
@@ -409,7 +482,11 @@ public class ExternalLinearHashMap<K, V> implements Iterable<MapEntry<K, V>> {
      */
     private int realHashIndex(K key) {
         // TODO
-        return 0;
+        int index = hashIndex(key, level);
+        if (index < expansionPointer) { // If within the range of expansionPointer, move to the new level
+            index = hashIndex(key, level + 1);
+        }
+        return index;
     }
 
     /**
@@ -482,26 +559,26 @@ public class ExternalLinearHashMap<K, V> implements Iterable<MapEntry<K, V>> {
             throw new IllegalStateException("Hashmap is closed.");
 
         return new Iterator<>() {
-            private Iterator<MapEntry<K, V>> it = buckets.getFirst().iterator();
-            private int bucketIndex = 0;
-            int i = 0;
+            private Iterator<MapEntry<K, V>> currentIterator = buckets.getFirst().iterator();
+            private int currentBucketIndex = 0;
+            private int processedElements = 0;
 
             @Override
             public boolean hasNext() {
-                return i < size;
+                return processedElements < size;
             }
 
             @Override
             public MapEntry<K, V> next() {
-                if (!it.hasNext()) {
-                    while (++bucketIndex < buckets.size()) {
-                        it = buckets.get(bucketIndex).iterator();
-                        if (it.hasNext())
+                if (!currentIterator.hasNext()) {
+                    while (++currentBucketIndex < buckets.size()) {
+                        currentIterator = buckets.get(currentBucketIndex).iterator();
+                        if (currentIterator.hasNext())
                             break;
                     }
                 }
-                i++;
-                return it.next();
+                processedElements++;
+                return currentIterator.next();
             }
         };
     }
